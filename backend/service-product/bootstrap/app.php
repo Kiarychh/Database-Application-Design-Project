@@ -7,12 +7,27 @@ use Illuminate\Foundation\Configuration\Middleware;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->remove(\Illuminate\Http\Middleware\HandleCors::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create();
+    })
+    ->withSchedule(function ($schedule) {
+        $schedule->command('orders:cancel-pending --hours=24')
+            ->everySixHours()
+            ->withoutOverlapping(10)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/orders-cancel-pending.log'));
+
+        $schedule->command('carts:send-abandoned-reminders --min-hours=24 --max-hours=48')
+            ->dailyAt('10:00')
+            ->withoutOverlapping(10)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/carts-abandoned-reminders.log'));
+    })
+    ->create();
